@@ -38,13 +38,13 @@
 
 namespace Stockfish {
 
-// ---------- उन्नत किंग हंटर बोनस (अधिक आक्रामक) ----------
+// ---------- उन्नत किंग हंटर बोनस (संशोधित) ----------
 template<Color Us>
 Value king_hunter_score(const Position& pos) {
     constexpr Color Them = ~Us;
     Square ksq = pos.square<KING>(Them);
 
-    // राजा के आसपास के 8 स्क्वेयर (King Ring) + राजा का अपना स्क्वेयर
+    // राजा के आसपास के 8 स्क्वेयर + राजा का अपना स्क्वेयर
     Bitboard kingRing = Attacks::attacks_bb<KING>(ksq) | square_bb(ksq);
 
     int score = 0;
@@ -52,45 +52,45 @@ Value king_hunter_score(const Position& pos) {
     // 1. हमारे मोहरों द्वारा किंग रिंग पर हमले
     Bitboard ourPieces = pos.pieces(Us);
     while (ourPieces) {
-        Square s = pop_lsb(&ourPieces);
+        Square s = pop_lsb(ourPieces);               // पॉइंटर नहीं, संदर्भ
         PieceType pt = type_of(pos.piece_on(s));
         Bitboard attacks = Attacks::attacks_bb(pt, s, pos.pieces());
 
         if (attacks & kingRing) {
             int w = 0;
             switch (pt) {
-                case QUEEN:  w = 12; break;   // बढ़ा हुआ भार
+                case QUEEN:  w = 12; break;
                 case ROOK:   w = 7;  break;
                 case BISHOP: w = 5;  break;
                 case KNIGHT: w = 5;  break;
                 case PAWN:   w = 2;  break;
                 default:     w = 0;  break;
             }
-            // अगर हम सीधे राजा पर हमला कर रहे हैं (चेक) तो अतिरिक्त बोनस
+            // यदि सीधे राजा पर चेक हो रहा है तो अतिरिक्त बोनस
             if (attacks & square_bb(ksq))
                 w += 10;
             score += w;
         }
     }
 
-    // 2. राजा की अपनी सुरक्षा (प्यादा ढाल) – कम प्यादे = अधिक खतरा
+    // 2. राजा की अपनी प्यादा ढाल – कम प्यादे = अधिक खतरा
     int friendlyPawns = popcount(pos.pieces(Them, PAWN) & kingRing);
-    score += (8 - friendlyPawns) * 4;   // बढ़ा हुआ प्रभाव
+    score += (8 - friendlyPawns) * 4;
 
     // 3. राजा की गतिशीलता – कम वैध किंग मूव्स = अधिक बोनस
-    Bitboard kingMoves = Attacks::attacks_bb<KING>(ksq) & ~pos.pieces(Them) & ~pos.attackers_to(ksq);
+    // सही attackers_to का उपयोग (occupancy सहित)
+    Bitboard kingMoves = Attacks::attacks_bb<KING>(ksq) & ~pos.pieces(Them) & ~pos.attackers_to(ksq, pos.pieces());
     int mobility = popcount(kingMoves);
     score += (8 - mobility) * 3;
 
-    // 4. हमारे प्यादों की उन्नति – अगर राजा की ओर प्यादे आगे बढ़े हैं तो बोनस
-    Bitboard pawns = pos.pieces(Us, PAWN);
-    Bitboard pawnStorm = pawns & Attacks::attacks_bb<KING>(ksq);
+    // 4. हमारे प्यादों की उन्नति (Pawn storm)
+    Bitboard pawnStorm = pos.pieces(Us, PAWN) & Attacks::attacks_bb<KING>(ksq);
     score += popcount(pawnStorm) * 6;
 
-    // अंतिम बोनस (महत्वपूर्ण स्केलिंग)
-    return Value(score * 8);   // पहले 5 था, अब 8
+    // अंतिम बोनस (स्केलिंग)
+    return Value(score * 8);
 }
-// ---------------------------------------------------
+// --------------------------------------------------------------
 
 Value Eval::evaluate(const Eval::NNUE::Network&     network,
                      const Position&                pos,
@@ -111,14 +111,14 @@ Value Eval::evaluate(const Eval::NNUE::Network&     network,
     int material = 534 * pos.count<PAWN>() + pos.non_pawn_material();
     int v        = (nnue * i64(91000 + material) + optimism * i64(7675)) / 91000;
 
-    // ----- किंग हंटर बोनस (अब अधिक शक्तिशाली) -----
+    // ----- किंग हंटर बोनस (अब संकलन-त्रुटि-मुक्त) -----
     Value wKing = king_hunter_score<WHITE>(pos);
     Value bKing = king_hunter_score<BLACK>(pos);
     Value kingDiff = wKing - bKing;
     if (pos.side_to_move() == BLACK)
         kingDiff = -kingDiff;
     v += kingDiff;   // v पहले से ही side-to-move के अनुसार है
-    // ------------------------------------------------
+    // --------------------------------------------------
 
     // Damp down the evaluation linearly when shuffling
     v -= v * pos.rule50_count() / 199;
@@ -160,4 +160,3 @@ std::string Eval::trace(Position& pos, const Eval::NNUE::Network& network) {
 }
 
 }  // namespace Stockfish
-```
