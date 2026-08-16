@@ -53,9 +53,8 @@
 
 namespace Stockfish {
 
-static constexpr std::array<int, 16> lmrDivisor = {3637, 2787, 2761, 2939, 3171, 3347, 3147, 2762,
-                                                   2772, 3106, 3107, 3060, 3112, 2991, 3090, 3542};
-
+static constexpr std::array<int, 16> lmrDivisor = {3356, 2999, 2853, 2872, 3098, 3469, 3210, 3192,
+                                                   3078, 2810, 2817, 2926, 3113, 3186, 3046, 3293};
 namespace TB = Tablebases;
 
 // ---------- किंग हंटर बोनस (प्रयोगात्मक) ----------
